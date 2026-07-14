@@ -996,13 +996,19 @@ function mostrarTreino(id){
   panel.hidden=false;
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
-window.onload=prepararCards;
-window.addEventListener('load',()=>{
+async function iniciarPlanner(){
+  // Recupera a última versão da nuvem antes de montar os cards na tela.
+  // Sem configuração do Firebase, o planner continua funcionando só no navegador.
+  if(window.firebasePlanner){
+    await window.firebasePlanner.restaurar();
+  }
+  prepararCards();
   atualizarMensagemRefeicao();
   restaurarSemanassCriadas();
   carregarEstadoSemanas();
   setInterval(atualizarMensagemRefeicao,60000);
-});
+}
+window.onload=iniciarPlanner;
 function resetar(){
   document.querySelectorAll('.card').forEach(card=>{
     card.setAttribute('data-state','white');
@@ -1272,4 +1278,73 @@ window.onclick=function(e){
   }
 }
 
+</script>
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
+  import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+
+  const status=document.createElement('div');
+  status.id='firebaseStatus';
+  status.style.cssText='position:fixed;right:16px;bottom:16px;padding:8px 10px;border-radius:8px;background:#334155;color:#fff;font:12px Arial;z-index:2000;display:none';
+  document.body.appendChild(status);
+  const informar=(mensagem,visivel=true)=>{
+    status.textContent=mensagem;
+    status.style.display=visivel?'block':'none';
+  };
+
+  const config=window.FIREBASE_CONFIG;
+  const configurado=config && config.apiKey && config.projectId && !String(config.apiKey).startsWith('COLE_');
+  let referencia=null;
+  let temporizador=null;
+  const chavesDoPlanner=()=>Object.keys(localStorage).filter(chave=>
+    chave==='theme' || chave==='semanasKriadas' || chave==='mealNoticeHidden' || chave==='mealNoticePrevHidden' ||
+    chave.startsWith('cardData_') || chave.startsWith('week') || chave.startsWith('comment_week_') || chave.startsWith('minimized_week_') || /^c\d+$/.test(chave)
+  );
+  const obterSnapshot=()=>Object.fromEntries(chavesDoPlanner().map(chave=>[chave,localStorage.getItem(chave)]));
+
+  async function salvarNaNuvem(){
+    temporizador=null;
+    if(!referencia) return;
+    try{
+      await setDoc(referencia,{dados:obterSnapshot(),atualizadoEm:new Date().toISOString()});
+      informar('Planner sincronizado');
+      setTimeout(()=>informar('',false),1800);
+    }catch(erro){
+      console.error('Erro ao sincronizar com o Firestore:',erro);
+      informar('Não foi possível sincronizar com o Firestore');
+    }
+  }
+  function agendarSincronizacao(){
+    if(!referencia) return;
+    clearTimeout(temporizador);
+    temporizador=setTimeout(salvarNaNuvem,800);
+  }
+
+  window.firebasePlanner={
+    async restaurar(){
+      if(!configurado){
+        console.info('Firebase ainda não configurado. Veja firebase-config.js.');
+        return;
+      }
+      try{
+        const app=initializeApp(config);
+        const db=getFirestore(app);
+        // Altere este identificador caso queira outro planner independente.
+        referencia=doc(db,'planners','oab48-principal');
+        const remoto=await getDoc(referencia);
+        if(remoto.exists() && remoto.data().dados){
+          Object.entries(remoto.data().dados).forEach(([chave,valor])=>localStorage.setItem(chave,valor));
+          informar('Planner carregado da nuvem');
+          setTimeout(()=>informar('',false),1800);
+        }
+        // Alterações do planner atual geram uma gravação única, com pequeno atraso.
+        new MutationObserver(agendarSincronizacao).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+      }catch(erro){
+        console.error('Erro ao conectar ao Firestore:',erro);
+        informar('Verifique a configuração e as regras do Firestore');
+      }
+    },
+    sincronizar:agendarSincronizacao
+  };
 </script></body></html>
