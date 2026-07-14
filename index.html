@@ -20,6 +20,13 @@ body.dark .meal-notice__close{color:#f8fafc}
 .meal-notice__time{font-weight:700;color:#e0f2fe;background:rgba(0, 0, 0, 0.18);padding:4px 8px;border-radius:999px;white-space:nowrap}
 .meal-notice__text{background:rgba(0, 0, 0, 0.18);padding:4px 8px;border-radius:999px;white-space:nowrap; flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ffffff;font-weight:600}
 .meal-notice__close{border:none;background:transparent;padding:0 2px;font-size:16px;cursor:pointer;color:#fff}
+.meal-records-btn{white-space:nowrap}
+.meal-records-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.meal-record{display:flex;gap:12px;align-items:flex-start;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px}
+.meal-record__time{font-weight:700;color:#2563eb;min-width:44px}
+.meal-record__text{font-size:14px;line-height:1.4;color:#334155}
+body.dark .meal-record{background:#111827;border-color:#374151}
+body.dark .meal-record__text{color:#e5e7eb}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(47,62,86,.08);cursor:pointer;transition:background-color .25s ease,transform .2s ease,border-color .25s ease,color .25s ease;border:1px solid #e3e8ef;overflow:hidden}
 .card:hover{transform:translateY(-1px)}
@@ -44,6 +51,7 @@ button{padding:10px 14px;background:#f6f8fb;border:1px solid #dbe2ea;border-radi
 #prog{font-weight:bold;margin:15px 0;text-align:left;color:#1f2937;transition:color .25s ease}
 .controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px}
 .controls .right{margin-left:auto}
+.planner-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .completion-row{display:none}
 .training-panel{background:#f8fafc;border:1px solid #cbd5e1;border-left:6px solid #4f8cff;border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin:0 0 16px;}
 .training-panel h3{margin:0 0 10px;color:#1e3a8a}
@@ -170,7 +178,7 @@ body.dark .comment-textarea{background-color:#111827;color:#f3f4f6;border-color:
   </div>
   <div class='right'><button type='button' onclick='toggleTheme()' id='themeBtn'>🌙 Modo escuro</button></div>
 </div>
-<div style='text-align:left'><button onclick='resetar()'>Limpar Marcações</button></div><br>
+<div class='planner-actions'><button type='button' onclick='resetar()'>Limpar Marcações</button><button type='button' class='meal-records-btn' onclick='mostrarRegistrosAlimentacao()'>🍽️ Alimentação</button></div>
 <div class='meal-notice meal-notice--prev' id='mealNoticePrev'>
   <span class='meal-notice__time' id='mealNoticePrevTime'>--:--</span>
   <span class='meal-notice__text' id='mealNoticePrevText'>Carregando aviso anterior...</span>
@@ -185,6 +193,13 @@ body.dark .comment-textarea{background-color:#111827;color:#f3f4f6;border-color:
   <h3 id='trainingPanelTitle'>Treino</h3>
   <div id='trainingPanelContent'></div>
   <button type='button' onclick='fecharTreino()'>Fechar treino</button>
+</div>
+<div id='mealRecordsModal' class='modal'>
+  <div class='modal-content' role='dialog' aria-modal='true' aria-labelledby='mealRecordsTitle'>
+    <div class='modal-header'><h2 id='mealRecordsTitle'>🍽️ Registros de alimentação</h2></div>
+    <div id='mealRecordsList' class='meal-records-list'></div>
+    <div class='modal-buttons'><button type='button' class='btn-cancel' onclick='fecharRegistrosAlimentacao()'>Fechar</button></div>
+  </div>
 </div>
 <div id='commentModal' class='modal'>
   <div class='comment-modal-content'>
@@ -201,7 +216,7 @@ body.dark .comment-textarea{background-color:#111827;color:#f3f4f6;border-color:
 <div id='weeksContainer'>
 <div class='week-container' data-week='1'>
 <div class='week-header' onclick='minimizarSemana(1)' style='cursor:pointer;'>
-<h2 class='week-title'>📅 Semana 1</h2>
+<h2 class='week-title'>📅 1ª Semana</h2>
 <div class='week-actions' onclick='event.stopPropagation();'>
 <button type='button' class='week-btn' onclick='event.stopPropagation();abrirCommentModal(1)' title='Adicionar comentário'>💬</button>
 <button type='button' class='week-btn' onclick='event.stopPropagation();minimizarSemana(1)' title='Minimizar semana'>−</button>
@@ -239,7 +254,20 @@ function salvar(){
   document.getElementById('prog').innerText='Progresso: '+Math.round((d/t)*100)+'%';
 }
 let cardEditando=null;
-let dadosBaseOriginaisPorDia=[];
+const nomesDiasSemana=['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo'];
+function obterDataDoPlanner(weekNum, dayIndex){
+  const hoje=new Date();
+  const inicioDaSemana=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate());
+  const diaDaSemana=inicioDaSemana.getDay() || 7;
+  inicioDaSemana.setDate(inicioDaSemana.getDate()-diaDaSemana+1);
+  inicioDaSemana.setDate(inicioDaSemana.getDate()+((weekNum-1)*7)+(dayIndex-1));
+  return inicioDaSemana;
+}
+function obterSubtituloDoCalendario(weekNum, dayIndex){
+  const data=obterDataDoPlanner(weekNum,dayIndex);
+  const dataFormatada=data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  return `${nomesDiasSemana[dayIndex-1] || ''} • ${dataFormatada}`;
+}
 function configurarCardInteracoes(card){
   card.setAttribute('role','button');
   card.setAttribute('tabindex','0');
@@ -698,15 +726,6 @@ function atualizarCorSemana(card){
   }
 }
 function prepararCards(){
-  const semanaBase=document.querySelector('.week-container[data-week="1"]');
-  if(semanaBase && dadosBaseOriginaisPorDia.length===0){
-    dadosBaseOriginaisPorDia=Array.from(semanaBase.querySelectorAll('.card')).map(card=>normalizarDadosCard({
-      titulo:card.querySelector('.card-title h2')?.textContent.trim() || 'Dia',
-      subtitulo:card.querySelector('.card-title small')?.textContent.trim() || '',
-      items:extrairItensDoCard(card)
-    }));
-  }
-
   document.querySelectorAll('.card').forEach((card,index)=>{
     const legacyId=card.getAttribute('data-id') || '';
     const weekContainer=card.closest('.week-container');
@@ -722,7 +741,7 @@ function prepararCards(){
     const h2=card.querySelector('h2');
     const small=card.querySelector('small');
     const titulo=h2 ? h2.textContent.trim() : 'Dia';
-    const subtitulo=small ? small.textContent.trim() : '';
+    const subtitulo=obterSubtituloDoCalendario(weekNum,diaNum);
     
     if(h2){
       const header=criarHeaderCard(card, titulo, subtitulo);
@@ -750,7 +769,7 @@ function prepararCards(){
     const dadosSalvos=carregarDadosCard(card, legacyId);
     const temDadosSalvos=Boolean(localStorage.getItem('cardData_'+card.getAttribute('data-id')) || (legacyId ? localStorage.getItem('cardData_'+legacyId) : ''));
     if(temDadosSalvos){
-      renderizarCard(card,{titulo:dadosSalvos.titulo || titulo, subtitulo:dadosSalvos.subtitulo || subtitulo, items:dadosSalvos.items, state:dadosSalvos.state || localStorage.getItem(card.getAttribute('data-id'))||'white'});
+      renderizarCard(card,{titulo:dadosSalvos.titulo || titulo, subtitulo, items:dadosSalvos.items, state:dadosSalvos.state || localStorage.getItem(card.getAttribute('data-id'))||'white'});
     } else {
       formatarCardParaBlocos(card);
       const itensIniciais=extrairItensDoCard(card);
@@ -805,6 +824,39 @@ function fecharNotificacao(id){
     localStorage.setItem(id+'Hidden','true');
   }
 }
+function obterRegistrosAlimentacao(){
+  return [
+    {time:'08:30',message:'Café da manhã — café 300g, 6 ovos e 1 fruta.'},
+    {time:'12:30',message:'Almoço — frango 200g (ou carne vermelha), 2 ovos, legumes 100g, arroz 250g e 1 fruta.'},
+    {time:'14:00',message:'Lanche da tarde — whey 30g de proteína + hipercalórico 160g.'},
+    {time:'17:00',message:'Pré-treino — mandioca 150g (ou batata, arroz ou macarrão) + 4 ovos (ou 120g de frango).'},
+    {time:'21:00',message:'Jantar — frango 200g (ou carne vermelha), 2 ovos, legumes 100g, arroz 250g e 1 fruta.'}
+  ];
+}
+function mostrarRegistrosAlimentacao(){
+  const modal=document.getElementById('mealRecordsModal');
+  const lista=document.getElementById('mealRecordsList');
+  if(!modal || !lista) return;
+  lista.innerHTML='';
+  obterRegistrosAlimentacao().forEach(registro=>{
+    const item=document.createElement('div');
+    item.className='meal-record';
+    const horario=document.createElement('span');
+    horario.className='meal-record__time';
+    horario.textContent=registro.time;
+    const descricao=document.createElement('span');
+    descricao.className='meal-record__text';
+    descricao.textContent=registro.message;
+    item.appendChild(horario);
+    item.appendChild(descricao);
+    lista.appendChild(item);
+  });
+  modal.style.display='block';
+}
+function fecharRegistrosAlimentacao(){
+  const modal=document.getElementById('mealRecordsModal');
+  if(modal) modal.style.display='none';
+}
 function atualizarMensagemRefeicao(){
   const aviso=document.getElementById('mealNotice');
   const texto=document.getElementById('mealNoticeText');
@@ -821,13 +873,7 @@ function atualizarMensagemRefeicao(){
   }
   const agora=new Date();
   const total=agora.getHours()*60+agora.getMinutes();
-  const meals=[
-    {time:'08:30',message:'Café da manhã — café 300g, 6 ovos e 1 fruta.'},
-    {time:'12:30',message:'Almoço — frango 200g (ou carne vermelha), 2 ovos, legumes 100g, arroz 250g e 1 fruta.'},
-    {time:'14:00',message:'Lanche da tarde — whey 30g de proteína + hipercalórico 160g.'},
-    {time:'17:00',message:'Pré-treino — mandioca 150g (ou batata, arroz ou macarrão) + 4 ovos (ou 120g de frango).'},
-    {time:'21:00',message:'Jantar — frango 200g (ou carne vermelha), 2 ovos, legumes 100g, arroz 250g e 1 fruta.'}
-  ];
+  const meals=obterRegistrosAlimentacao();
   let currentIndex=0;
   if(total < 8*60+30) currentIndex=0;
   else if(total < 12*60+30) currentIndex=1;
@@ -987,14 +1033,13 @@ function gerarDadosNovoDia(weekNum, diaAtual, dayIndex=1){
   const cardId=`week${weekNum}-day${dayIndex}`;
   const dadosSalvos=obterDadosPersistidosPorId(cardId);
   if(dadosSalvos){
-    return normalizarDadosCard({titulo:dadosSalvos.titulo || `Dia ${diaAtual}`, subtitulo:dadosSalvos.subtitulo, items:dadosSalvos.items, state:dadosSalvos.state || 'white'});
+    return normalizarDadosCard({titulo:dadosSalvos.titulo || `Dia ${diaAtual}`, subtitulo:obterSubtituloDoCalendario(weekNum,dayIndex), items:dadosSalvos.items, state:dadosSalvos.state || 'white'});
   }
 
-  const baseDados=dadosBaseOriginaisPorDia[dayIndex-1] || null;
   return normalizarDadosCard({
     titulo:`Dia ${diaAtual}`,
-    subtitulo:baseDados?.subtitulo || '',
-    items:Array.isArray(baseDados?.items) ? baseDados.items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})) : [],
+    subtitulo:obterSubtituloDoCalendario(weekNum,dayIndex),
+    items:[],
     state:'white'
   });
 }
@@ -1003,6 +1048,9 @@ function criarDia(weekNum, diaAtual, dayIndex=1){
   novoCard.className='card';
   const novoCardId=gerarIdDoCard(novoCard, weekNum, dayIndex);
   novoCard.setAttribute('data-id', novoCardId);
+  if(dayIndex<=6){
+    novoCard.setAttribute('data-treino',String(dayIndex));
+  }
   const payload=gerarDadosNovoDia(weekNum, diaAtual, dayIndex);
   renderizarCard(novoCard,payload);
   salvarDadosCard(novoCard,payload);
@@ -1019,7 +1067,7 @@ function criarSemana(weekNum){
   header.addEventListener('click',()=>minimizarSemana(weekNum));
   const title=document.createElement('h2');
   title.className='week-title';
-  title.textContent=`📅 Semana ${weekNum}`;
+  title.textContent=`📅 ${weekNum}ª Semana`;
   const actions=document.createElement('div');
   actions.className='week-actions';
   actions.addEventListener('click',event=>event.stopPropagation());
@@ -1045,15 +1093,17 @@ function criarSemana(weekNum){
 function adicionarSemana(){
   const container=document.getElementById('weeksContainer');
   const weeks=container.querySelectorAll('.week-container');
-  const numeros=Array.from(weeks).map(week=>parseInt(week.getAttribute('data-week'),10)).filter(Number.isFinite);
-  const proximaSemana=Number(localStorage.getItem('proximaSemana'));
-  const newWeekNum=Number.isFinite(proximaSemana) && proximaSemana>0 ? proximaSemana : (numeros.length ? Math.max(...numeros) : 0)+1;
-  localStorage.setItem('proximaSemana',String(newWeekNum+1));
+  const numeros=new Set(Array.from(weeks).map(week=>parseInt(week.getAttribute('data-week'),10)).filter(Number.isFinite));
+  let newWeekNum=1;
+  while(numeros.has(newWeekNum)){
+    newWeekNum++;
+  }
   const weekContainer=criarSemana(newWeekNum);
   
   const button=document.querySelector('.add-week-btn');
   const wrapper=button.parentElement;
-  wrapper.parentElement.insertBefore(weekContainer,wrapper);
+  const proximaSemanaExistente=Array.from(weeks).find(week=>parseInt(week.getAttribute('data-week'),10)>newWeekNum);
+  wrapper.parentElement.insertBefore(weekContainer,proximaSemanaExistente || wrapper);
   
   if(newWeekNum<10){
     button.textContent=`+ Adicionar Semana`;
@@ -1064,7 +1114,7 @@ function adicionarSemana(){
   let semanassCriadas=JSON.parse(localStorage.getItem('semanasKriadas')||'[]');
   if(!semanassCriadas.includes(newWeekNum)){
     semanassCriadas.push(newWeekNum);
-    localStorage.setItem('semanasKriadas',JSON.stringify(semanassCriadas));
+    localStorage.setItem('semanasKriadas',JSON.stringify(semanassCriadas.sort((a,b)=>a-b)));
   }
 }
 let currentCommentWeek=null;
@@ -1131,6 +1181,18 @@ function deletarSemana(weekNum){
       weekContainer.style.transition='all 0.3s ease';
       
       setTimeout(()=>{
+        weekContainer.querySelectorAll('.card').forEach(card=>{
+          const cardId=card.getAttribute('data-id');
+          const legacyId=card.getAttribute('data-legacy-id');
+          if(cardId){
+            localStorage.removeItem(cardId);
+            localStorage.removeItem('cardData_'+cardId);
+          }
+          if(legacyId && legacyId!==cardId){
+            localStorage.removeItem(legacyId);
+            localStorage.removeItem('cardData_'+legacyId);
+          }
+        });
         weekContainer.remove();
         localStorage.removeItem(`comment_week_${weekNum}`);
         localStorage.removeItem(`minimized_week_${weekNum}`);
@@ -1203,6 +1265,10 @@ window.onclick=function(e){
   const commentModal=document.getElementById('commentModal');
   if(e.target===commentModal){
     fecharCommentModal();
+  }
+  const mealRecordsModal=document.getElementById('mealRecordsModal');
+  if(e.target===mealRecordsModal){
+    fecharRegistrosAlimentacao();
   }
 }
 
