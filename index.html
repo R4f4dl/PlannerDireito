@@ -1,4 +1,3 @@
-
 <!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Planner de Estudos</title>
@@ -525,17 +524,16 @@ function criarBlocoDeItem(card, item, index){
   block.appendChild(contentRow);
   return block;
 }
-function clonarDadosCard(dados){
+function normalizarDadosCard(dados){
   if(!dados || typeof dados !== 'object'){
     return {titulo:'', subtitulo:'', items:[], state:'white'};
   }
-  const clone={
+  return {
     titulo:dados.titulo || '',
     subtitulo:dados.subtitulo || '',
-    items:Array.isArray(dados.items) ? dados.items.map(item=>({...item})) : [],
+    items:Array.isArray(dados.items) ? dados.items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})) : [],
     state:dados.state || 'white'
   };
-  return clone;
 }
 function gerarIdDoCard(card, weekNum=null, diaIndex=null){
   const existingId=card.getAttribute('data-id');
@@ -573,22 +571,22 @@ function carregarDadosCard(card, legacyId=''){
 
     const parsed=JSON.parse(raw);
     if(Array.isArray(parsed)){
-      return {titulo, subtitulo, items:parsed.map(item=>({...item})), state};
+      return {titulo, subtitulo, items:parsed.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})), state};
     }
 
     if(parsed && typeof parsed==='object'){
       return {
         titulo: parsed.titulo || titulo,
         subtitulo: parsed.subtitulo || subtitulo,
-        items: Array.isArray(parsed.items) ? parsed.items.map(item=>({...item})) : items.map(item=>({...item})),
+        items: Array.isArray(parsed.items) ? parsed.items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})) : items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})),
         state: parsed.state || state
       };
     }
   } catch{
-    return {titulo, subtitulo, items:items.map(item=>({...item})), state};
+    return {titulo, subtitulo, items:items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})), state};
   }
 
-  return {titulo, subtitulo, items:items.map(item=>({...item})), state};
+  return {titulo, subtitulo, items:items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})), state};
 }
 function salvarDadosCard(card, {titulo='', subtitulo='', items=[], state=card.getAttribute('data-state')||'white'}={}){
   const cardId=obterChaveStorageCard(card);
@@ -606,7 +604,7 @@ function salvarDadosCard(card, {titulo='', subtitulo='', items=[], state=card.ge
     }
   }
 
-  const payload=clonarDadosCard({titulo, subtitulo, items, state});
+  const payload=normalizarDadosCard({titulo, subtitulo, items, state});
   localStorage.setItem('cardData_'+cardId, JSON.stringify({titulo:payload.titulo, subtitulo:payload.subtitulo, items:payload.items}));
   localStorage.setItem(cardId, payload.state || 'white');
 }
@@ -617,7 +615,7 @@ function salvarItensDoCard(card){
 }
 function renderizarCard(card, {titulo='', subtitulo='', items=[], state=card.getAttribute('data-state')||'white'}={}){
   const cardId=obterChaveStorageCard(card);
-  const safeItems=Array.isArray(items) ? items.map(item=>({...item})) : [];
+  const safeItems=Array.isArray(items) ? items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})) : [];
 
   card.innerHTML='';
   card.appendChild(criarHeaderCard(card, titulo || 'Dia', subtitulo || ''));
@@ -644,7 +642,21 @@ function renderizarCard(card, {titulo='', subtitulo='', items=[], state=card.get
 
   const completionRow=document.createElement('div');
   completionRow.className='completion-row';
-  completionRow.innerHTML=`<button class="completion-btn" type="button" data-id="${cardId}" data-state="${state}" onclick="alternarStatus(this)"><span class="checkmark">✓</span></button><span class="completion-label">Dia concluído</span>`;
+  const completionButton=document.createElement('button');
+  completionButton.className='completion-btn';
+  completionButton.type='button';
+  completionButton.setAttribute('data-id',cardId);
+  completionButton.setAttribute('data-state',state);
+  completionButton.addEventListener('click',event=>{ event.stopPropagation(); alternarStatus(completionButton); });
+  const checkmark=document.createElement('span');
+  checkmark.className='checkmark';
+  checkmark.textContent='✓';
+  completionButton.appendChild(checkmark);
+  const completionLabel=document.createElement('span');
+  completionLabel.className='completion-label';
+  completionLabel.textContent='Dia concluído';
+  completionRow.appendChild(completionButton);
+  completionRow.appendChild(completionLabel);
   card.appendChild(completionRow);
 
   card.setAttribute('data-state', state);
@@ -653,88 +665,10 @@ function renderizarCard(card, {titulo='', subtitulo='', items=[], state=card.get
   return card;
 }
 function formatarCardParaBlocos(card){
-  const existingHeader=card.querySelector('.card-header');
-  const titleText=existingHeader?.querySelector('h2')?.textContent.trim() || card.querySelector('h2')?.textContent.trim() || '';
-  const subtitleText=existingHeader?.querySelector('small')?.textContent.trim() || card.querySelector('small')?.textContent.trim() || '';
-  const completionRow=card.querySelector('.completion-row');
-  const childNodes=Array.from(card.childNodes).filter(node=>node.nodeType===1 || node.nodeType===3);
-  const headerNode=childNodes.find(node=>node.nodeType===1 && node.classList && node.classList.contains('card-header'));
-  const contentNodes=childNodes.filter(node=>node!==headerNode && !(node.nodeType===1 && node.classList && node.classList.contains('completion-row')));
-
-  const blocksContainer=document.createElement('div');
-  blocksContainer.className='card-blocks';
-
-  const blocks=[];
-  let currentTime='';
-  let currentContentNodes=[];
-
-  const flushBlock=()=>{
-    if(currentTime || currentContentNodes.length){
-      const block=document.createElement('div');
-      block.className='time-block';
-
-      const timeRow=document.createElement('div');
-      timeRow.className='time-block__row';
-      const time=document.createElement('div');
-      time.className='time-block__time';
-      time.textContent=currentTime || 'Atividade';
-      timeRow.appendChild(time);
-
-      const contentRow=document.createElement('div');
-      contentRow.className='time-block__row';
-      const body=document.createElement('div');
-      body.className='time-block__content';
-      currentContentNodes.forEach(node=>body.appendChild(node.cloneNode(true)));
-      contentRow.appendChild(body);
-
-      block.appendChild(timeRow);
-      block.appendChild(contentRow);
-      blocks.push(block);
-    }
-    currentTime='';
-    currentContentNodes=[];
-  };
-
-  contentNodes.forEach(node=>{
-    if(node.nodeType===1 && (node.classList?.contains('academia-action') || node.classList?.contains('train-link'))){
-      return;
-    }
-
-    if(node.nodeType===1 && node.tagName==='HR'){
-      flushBlock();
-      return;
-    }
-
-    if(node.nodeType===1 && node.tagName==='STRONG'){
-      flushBlock();
-      currentTime=node.textContent.trim();
-      return;
-    }
-
-    if(node.nodeType===3){
-      if(node.textContent.trim() || currentTime){
-        currentContentNodes.push(node.cloneNode(true));
-      }
-      return;
-    }
-
-    if(node.nodeType===1){
-      currentContentNodes.push(node.cloneNode(true));
-    }
-  });
-
-  flushBlock();
-
-  card.innerHTML='';
-  card.appendChild(criarHeaderCard(card, titleText, subtitleText));
-  if(blocks.length){
-    blocks.forEach(block=>blocksContainer.appendChild(block));
-    card.appendChild(blocksContainer);
-  }
-  garantirBotaoAcademia(card);
-  if(completionRow){
-    card.appendChild(completionRow.cloneNode(true));
-  }
+  const titulo=card.querySelector('.card-header h2, h2')?.textContent.trim() || 'Dia';
+  const subtitulo=card.querySelector('.card-header small, small')?.textContent.trim() || '';
+  const items=extrairItensDoCard(card).map(item=>({horario:item.horario || '', texto:item.texto || ''}));
+  renderizarCard(card,{titulo, subtitulo, items, state:card.getAttribute('data-state') || 'white'});
 }
 function alternarCard(card){
   const estados=['white','yellow','green'];
@@ -743,6 +677,12 @@ function alternarCard(card){
   card.setAttribute('data-state',estados[(indice+1)%estados.length]);
   salvar();
   atualizarCorSemana(card);
+}
+function alternarStatus(button){
+  const card=button.closest('.card');
+  if(!card) return;
+  alternarCard(card);
+  button.setAttribute('data-state',card.getAttribute('data-state') || 'white');
 }
 function atualizarCorSemana(card){
   const weekContainer=card.closest('.week-container');
@@ -757,20 +697,10 @@ function atualizarCorSemana(card){
     weekContainer.classList.remove('completed');
   }
 }
-document.addEventListener('click',e=>{
-  const editBtn=e.target.closest('.card-edit-toggle');
-  if(!editBtn) return;
-  const card=editBtn.closest('.card');
-  if(!card) return;
-  e.preventDefault();
-  e.stopPropagation();
-  entrarModoEdicao(card);
-});
-
 function prepararCards(){
   const semanaBase=document.querySelector('.week-container[data-week="1"]');
   if(semanaBase && dadosBaseOriginaisPorDia.length===0){
-    dadosBaseOriginaisPorDia=Array.from(semanaBase.querySelectorAll('.card')).map(card=>clonarDadosCard({
+    dadosBaseOriginaisPorDia=Array.from(semanaBase.querySelectorAll('.card')).map(card=>normalizarDadosCard({
       titulo:card.querySelector('.card-title h2')?.textContent.trim() || 'Dia',
       subtitulo:card.querySelector('.card-title small')?.textContent.trim() || '',
       items:extrairItensDoCard(card)
@@ -1048,58 +978,78 @@ function obterDadosPersistidosPorId(cardId){
   try{
     const parsed=JSON.parse(raw);
     if(parsed && typeof parsed==='object' && !Array.isArray(parsed)){
-      return clonarDadosCard(parsed);
+      return normalizarDadosCard(parsed);
     }
   } catch{}
   return null;
 }
-function obterDadosBaseParaNovoCard(weekNum, diaAtual, dayIndex=1){
+function gerarDadosNovoDia(weekNum, diaAtual, dayIndex=1){
   const cardId=`week${weekNum}-day${dayIndex}`;
   const dadosSalvos=obterDadosPersistidosPorId(cardId);
   if(dadosSalvos){
-    return clonarDadosCard({...dadosSalvos, titulo:dadosSalvos.titulo || `Dia ${diaAtual}`, state:'white'});
+    return normalizarDadosCard({titulo:dadosSalvos.titulo || `Dia ${diaAtual}`, subtitulo:dadosSalvos.subtitulo, items:dadosSalvos.items, state:dadosSalvos.state || 'white'});
   }
 
   const baseDados=dadosBaseOriginaisPorDia[dayIndex-1] || null;
-  return clonarDadosCard({
+  return normalizarDadosCard({
     titulo:`Dia ${diaAtual}`,
     subtitulo:baseDados?.subtitulo || '',
-    items:Array.isArray(baseDados?.items) ? baseDados.items.map(item=>({...item})) : [],
+    items:Array.isArray(baseDados?.items) ? baseDados.items.map(item=>({horario:item?.horario || '', texto:item?.texto || ''})) : [],
     state:'white'
   });
 }
-function criarCardParaNovaSemana(cardOrigem, weekNum, diaAtual, dayIndex=1){
+function criarDia(weekNum, diaAtual, dayIndex=1){
   const novoCard=document.createElement('div');
   novoCard.className='card';
   const novoCardId=gerarIdDoCard(novoCard, weekNum, dayIndex);
   novoCard.setAttribute('data-id', novoCardId);
-  const payload=obterDadosBaseParaNovoCard(weekNum, diaAtual, dayIndex);
+  const payload=gerarDadosNovoDia(weekNum, diaAtual, dayIndex);
   renderizarCard(novoCard,payload);
-  configurarCardInteracoes(novoCard);
   salvarDadosCard(novoCard,payload);
   return novoCard;
+}
+function criarSemana(weekNum){
+  const weekContainer=document.createElement('div');
+  weekContainer.className='week-container';
+  weekContainer.setAttribute('data-week', String(weekNum));
+
+  const header=document.createElement('div');
+  header.className='week-header';
+  header.style.cursor='pointer';
+  header.addEventListener('click',()=>minimizarSemana(weekNum));
+  const title=document.createElement('h2');
+  title.className='week-title';
+  title.textContent=`📅 Semana ${weekNum}`;
+  const actions=document.createElement('div');
+  actions.className='week-actions';
+  actions.addEventListener('click',event=>event.stopPropagation());
+  const criarBotao=(texto,titulo,acao,classe='week-btn')=>{
+    const botao=document.createElement('button');
+    botao.type='button'; botao.className=classe; botao.title=titulo; botao.textContent=texto;
+    botao.addEventListener('click',event=>{ event.stopPropagation(); acao(); });
+    return botao;
+  };
+  actions.appendChild(criarBotao('💬','Adicionar comentário',()=>abrirCommentModal(weekNum)));
+  actions.appendChild(criarBotao('−','Minimizar semana',()=>minimizarSemana(weekNum)));
+  actions.appendChild(criarBotao('✕','Deletar semana',()=>deletarSemana(weekNum),'week-btn delete'));
+  header.appendChild(title); header.appendChild(actions);
+  const grid=document.createElement('div');
+  grid.className='grid';
+  const primeiroDia=(weekNum-1)*7+1;
+  for(let diaIndex=1; diaIndex<=7; diaIndex++){
+    grid.appendChild(criarDia(weekNum, primeiroDia+diaIndex-1, diaIndex));
+  }
+  weekContainer.appendChild(header); weekContainer.appendChild(grid);
+  return weekContainer;
 }
 function adicionarSemana(){
   const container=document.getElementById('weeksContainer');
   const weeks=container.querySelectorAll('.week-container');
-  const lastWeek=weeks[weeks.length-1];
-  const lastWeekNum=parseInt(lastWeek.getAttribute('data-week'));
-  const newWeekNum=lastWeekNum+1;
-  
-  const lastCards=lastWeek.querySelectorAll('.card');
-  const cartaoInicial=lastCards[0];
-  const diaInicial=parseInt(cartaoInicial.querySelector('h2').textContent.match(/\d+/)[0]);
-  
-  const weekContainer=document.createElement('div');
-  weekContainer.className='week-container';
-  weekContainer.setAttribute('data-week', String(newWeekNum));
-  weekContainer.innerHTML=`<div class='week-header' onclick='minimizarSemana(${newWeekNum})' style='cursor:pointer;'>\n<h2 class='week-title'>📅 Semana ${newWeekNum}</h2>\n<div class='week-actions' onclick='event.stopPropagation();'>\n<button type='button' class='week-btn' onclick='event.stopPropagation();abrirCommentModal(${newWeekNum})' title='Adicionar comentário'>💬</button>\n<button type='button' class='week-btn' onclick='event.stopPropagation();minimizarSemana(${newWeekNum})' title='Minimizar semana'>−</button>\n<button type='button' class='week-btn delete' onclick='event.stopPropagation();deletarSemana(${newWeekNum})' title='Deletar semana'>✕</button>\n</div>\n</div>\n<div class='grid'></div>`;
-  
-  const grid=weekContainer.querySelector('.grid');
-  lastCards.forEach((card,idx)=>{
-    const diaAtual=diaInicial+idx;
-    grid.appendChild(criarCardParaNovaSemana(card, newWeekNum, diaAtual, idx+1));
-  });
+  const numeros=Array.from(weeks).map(week=>parseInt(week.getAttribute('data-week'),10)).filter(Number.isFinite);
+  const proximaSemana=Number(localStorage.getItem('proximaSemana'));
+  const newWeekNum=Number.isFinite(proximaSemana) && proximaSemana>0 ? proximaSemana : (numeros.length ? Math.max(...numeros) : 0)+1;
+  localStorage.setItem('proximaSemana',String(newWeekNum+1));
+  const weekContainer=criarSemana(newWeekNum);
   
   const button=document.querySelector('.add-week-btn');
   const wrapper=button.parentElement;
@@ -1212,45 +1162,15 @@ function deletarComentario(weekNum){
   }
 }
 function restaurarSemanassCriadas(){
-  const semanassCriadas=JSON.parse(localStorage.getItem('semanasKriadas')||'[]');
+  const semanassCriadas=JSON.parse(localStorage.getItem('semanasKriadas')||'[]').filter(Number.isFinite);
   
   semanassCriadas.forEach(weekNum=>{
     if(!document.querySelector(`.week-container[data-week='${weekNum}']`)){
       const container=document.getElementById('weeksContainer');
-      const semana1=container.querySelector(`.week-container[data-week='1']`);
-      
-      if(semana1){
-        const cards=semana1.querySelectorAll('.card');
-        const diaInicial=weekNum*7-6;
-        
-        const weekContainer=document.createElement('div');
-        weekContainer.className='week-container';
-        weekContainer.setAttribute('data-week', String(weekNum));
-        weekContainer.innerHTML=`<div class='week-header' onclick='minimizarSemana(${weekNum})' style='cursor:pointer;'>\n<h2 class='week-title'>📅 Semana ${weekNum}</h2>\n<div class='week-actions' onclick='event.stopPropagation();'>\n<button type='button' class='week-btn' onclick='event.stopPropagation();abrirCommentModal(${weekNum})' title='Adicionar comentário'>💬</button>\n<button type='button' class='week-btn' onclick='event.stopPropagation();minimizarSemana(${weekNum})' title='Minimizar semana'>−</button>\n<button type='button' class='week-btn delete' onclick='event.stopPropagation();deletarSemana(${weekNum})' title='Deletar semana'>✕</button>\n</div>\n</div>\n<div class='grid'></div>`;
-        
-        const grid=weekContainer.querySelector('.grid');
-        cards.forEach((card,idx)=>{
-          const diaAtual=diaInicial+idx;
-          grid.appendChild(criarCardParaNovaSemana(card, weekNum, diaAtual, idx+1));
-        });
-        
-        const button=document.querySelector('.add-week-btn');
-        const wrapper=button.parentElement;
-        wrapper.parentElement.insertBefore(weekContainer,wrapper);
-        
-        const newWeekCards=document.querySelectorAll(`.week-container[data-week='${weekNum}'] .card`);
-        newWeekCards.forEach((card,index)=>{
-          card.setAttribute('data-treino', String(index+1));
-          configurarCardInteracoes(card);
-        });
-        
-        newWeekCards.forEach(card=>atualizarCorSemana(card));
-        
-        const maxWeek=Math.max(...semanassCriadas);
-        if(maxWeek<10){
-          button.textContent=`+ Adicionar Semana`;
-        }
-      }
+      const weekContainer=criarSemana(weekNum);
+      const button=document.querySelector('.add-week-btn');
+      button.parentElement.parentElement.insertBefore(weekContainer,button.parentElement);
+      weekContainer.querySelectorAll('.card').forEach(card=>atualizarCorSemana(card));
     }
   });
 }
