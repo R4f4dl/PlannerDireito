@@ -41,6 +41,10 @@ ul{padding-left:16px;margin:4px 0 0}
 body.dark .time-block{background:#111827;border-color:#374151}
 .time-block__row{display:flex;align-items:flex-start;gap:6px}
 .time-block__time{font-weight:700;color:#2563eb;font-size:12px;letter-spacing:.02em;padding-bottom:4px;border-bottom:1px solid #e2e8f0;margin-bottom:4px;flex:1}
+.time-block__delete{border:0;background:transparent;color:#94a3b8;font-size:18px;line-height:1;padding:0 2px;cursor:pointer;border-radius:4px;flex-shrink:0}
+.time-block__delete:hover{background:#fee2e2;color:#dc2626}
+body.dark .time-block__delete{color:#94a3b8}
+body.dark .time-block__delete:hover{background:#7f1d1d;color:#fecaca}
 .time-block__content{color:#334155;font-size:13px;line-height:1.35;white-space:pre-wrap;flex:1}
 body.dark .time-block__content{color:#e5e7eb}
 body.dark .time-block__time{border-bottom-color:#374151}
@@ -539,6 +543,18 @@ function criarBlocoDeItem(card, item, index){
 
   timeRow.appendChild(time);
 
+  const deleteButton=document.createElement('button');
+  deleteButton.type='button';
+  deleteButton.className='time-block__delete';
+  deleteButton.textContent='×';
+  deleteButton.title='Excluir bloco';
+  deleteButton.setAttribute('aria-label','Excluir bloco');
+  deleteButton.addEventListener('click',event=>{
+    event.stopPropagation();
+    excluirBlocoDoCard(card,index);
+  });
+  timeRow.appendChild(deleteButton);
+
   const contentRow=document.createElement('div');
   contentRow.className='time-block__row';
 
@@ -551,6 +567,17 @@ function criarBlocoDeItem(card, item, index){
   block.appendChild(timeRow);
   block.appendChild(contentRow);
   return block;
+}
+function excluirBlocoDoCard(card,index){
+  const dados=carregarDadosCard(card);
+  if(!dados.items[index]) return;
+  if(!confirm('Excluir este bloco de horário?')) return;
+
+  dados.items.splice(index,1);
+  salvarDadosCard(card,{titulo:dados.titulo, subtitulo:dados.subtitulo, items:dados.items, state:card.getAttribute('data-state')||dados.state||'white'});
+  renderizarCard(card,{titulo:dados.titulo, subtitulo:dados.subtitulo, items:dados.items, state:card.getAttribute('data-state')||dados.state||'white'});
+  salvar();
+  atualizarCorSemana(card);
 }
 function normalizarDadosCard(dados){
   if(!dados || typeof dados !== 'object'){
