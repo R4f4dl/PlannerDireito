@@ -1573,8 +1573,14 @@ window.onclick=function(e){
         },erro=>{
           console.error('Erro ao receber atualizações do Firestore:',erro);
         });
-        // Alterações do planner atual geram uma gravação única, com pequeno atraso.
-        new MutationObserver(agendarSincronizacao).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+        // Aguarda a montagem inicial do planner terminar. Sem isso, cada recarga
+        // seria interpretada como uma edição e poderia provocar um ciclo entre dispositivos.
+        setTimeout(()=>{
+          new MutationObserver(mutations=>{
+            const houveAlteracaoNoPlanner=mutations.some(mutation=>!status.contains(mutation.target));
+            if(houveAlteracaoNoPlanner) agendarSincronizacao();
+          }).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+        },0);
       }catch(erro){
         console.error('Erro ao conectar ao Firestore:',erro);
         informar('Verifique a configuração e as regras do Firestore');
