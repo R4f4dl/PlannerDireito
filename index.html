@@ -2,7 +2,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Planner de Estudos</title>
 <style>
-body{font-family:Arial,sans-serif;background:#eef2f7;color:#111827;margin:20px;transition:background-color .25s ease,color .25s ease}
+*{box-sizing:border-box}
+html{background:#eef2f7}
+body{font-family:Arial,sans-serif;background:#eef2f7;color:#111827;margin:0;padding:clamp(12px,3vw,32px);min-height:100vh;transition:background-color .25s ease,color .25s ease}
 body.dark{background:#111827;color:#d8deeb}
 h1{text-align:left;color:#2f3e56;transition:color .25s ease}
 body.dark h1,body.dark #prog,body.dark .controls button,body.dark .card,body.dark .card h2,body.dark .card small,body.dark .card strong{color:#f3f4f6}
@@ -27,8 +29,8 @@ body.dark .meal-notice__close{color:#f8fafc}
 .meal-record__text{font-size:14px;line-height:1.4;color:#334155}
 body.dark .meal-record{background:#111827;border-color:#374151}
 body.dark .meal-record__text{color:#e5e7eb}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-.card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(47,62,86,.08);cursor:pointer;transition:background-color .25s ease,transform .2s ease,border-color .25s ease,color .25s ease;border:1px solid #e3e8ef;overflow:hidden}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(47,62,86,.08);cursor:pointer;transition:background-color .25s ease,transform .2s ease,border-color .25s ease,color .25s ease,box-shadow .25s ease;border:1px solid #e3e8ef;overflow:hidden}
 .card:hover{transform:translateY(-1px)}
 .card[data-state='yellow']{background:#fdf2b8}
 .card[data-state='green']{background:#dff5e6;color:#2f4f3f}
@@ -51,18 +53,18 @@ body.dark .time-block__time{border-bottom-color:#374151}
 .time-block__content ul{margin:6px 0 0;padding-left:16px}
 .time-block__content br{display:block;content:'';margin-top:4px}
 label{display:block;margin:6px 0}
-button{padding:10px 14px;background:#f6f8fb;border:1px solid #dbe2ea;border-radius:8px;color:#1f2937;cursor:pointer;transition:background-color .25s ease,color .25s ease,border-color .25s ease}
+button{padding:10px 14px;background:#f6f8fb;border:1px solid #dbe2ea;border-radius:8px;color:#1f2937;cursor:pointer;touch-action:manipulation;transition:background-color .25s ease,color .25s ease,border-color .25s ease}
 #prog{font-weight:bold;margin:15px 0;text-align:left;color:#1f2937;transition:color .25s ease}
-.controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px}
+.controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px;max-width:1180px;margin-left:auto;margin-right:auto}
 .controls .right{margin-left:auto}
-.planner-actions{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.planner-actions{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 auto 16px;max-width:1180px}
 .planner-actions__primary{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .apply-grade-btn{padding:4px 8px;background:transparent;border-color:transparent;color:#6b7a90;font-size:11px;opacity:.58}
 .apply-grade-btn:hover,.apply-grade-btn:focus-visible{opacity:1;border-color:#cbd5e1;background:#f8fafc;color:#334155}
 body.dark .apply-grade-btn{color:#9ca3af}
 body.dark .apply-grade-btn:hover,body.dark .apply-grade-btn:focus-visible{border-color:#4b5563;background:#374151;color:#f3f4f6}
 .completion-row{display:none}
-.training-panel{background:#f8fafc;border:1px solid #cbd5e1;border-left:6px solid #4f8cff;border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin:0 0 16px;}
+.training-panel{background:#f8fafc;border:1px solid #cbd5e1;border-left:6px solid #4f8cff;border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin:0 auto 16px;max-width:1180px}
 .training-panel h3{margin:0 0 10px;color:#1e3a8a}
 .training-panel ul{padding-left:18px;margin:0}
 .training-panel li{margin:6px 0;color:#1f2937}
@@ -144,7 +146,7 @@ body.dark .section-title{color:#e5e7eb}
 .form-hint{font-size:12px;color:#6b7a90;margin:-4px 0 10px;line-height:1.4}
 body.dark .form-hint{color:#9ca3af}
 .modal-content{max-height:80vh;overflow-y:auto}
-.week-container{background:#f8fafc;border:2px solid #cbd5e1;border-radius:12px;padding:20px;margin-bottom:24px;box-shadow:0 2px 8px rgba(47,62,86,.06)}
+.week-container{background:#f8fafc;border:2px solid #cbd5e1;border-radius:16px;padding:20px;margin-bottom:24px;box-shadow:0 2px 8px rgba(47,62,86,.06)}
 body.dark .week-container{background:#1f2937;border-color:#374151}
 .week-container.completed{background:#dff5e6;border-color:#10b981}
 body.dark .week-container.completed{background:#1f4d3a;border-color:#10b981}
@@ -179,6 +181,64 @@ body.dark .comment-modal-content{background-color:#1f2937;color:#f3f4f6}
 body.dark .comment-textarea{background-color:#111827;color:#f3f4f6;border-color:#374151}
 .comment-textarea:focus{outline:none;border-color:#4f8cff;box-shadow:0 0 0 3px rgba(79,140,255,.1)}
 .grid.collapsed{display:none}
+#weeksContainer,.meal-notice{max-width:1180px;margin-left:auto;margin-right:auto}
+#weeksContainer>div[style*='text-align:center']{margin-left:auto!important;margin-right:auto!important}
+button:focus-visible,.card:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(59,130,246,.42);outline-offset:2px}
+@media (max-width:680px){
+  body{padding:12px 10px 24px}
+  h1{font-size:24px;line-height:1.1;margin:0 0 6px}
+  #prog{margin:0;font-size:13px}
+  .controls{align-items:flex-start;margin-bottom:14px}
+  .controls .right{margin-left:0}
+  .controls .right button{padding:9px 10px;font-size:12px;white-space:nowrap}
+  .planner-actions{align-items:flex-start;margin-bottom:14px}
+  .planner-actions__primary>button:first-child,.meal-records-btn{padding:9px 10px;font-size:12px}
+  .apply-grade-btn{padding:3px 5px;font-size:10px;text-align:left}
+  .meal-notice{padding:9px 10px;gap:7px;margin-bottom:10px;font-size:12px}
+  .meal-notice__time{padding:3px 6px}
+  .meal-notice__text{white-space:normal;padding:3px 6px}
+  .training-panel{padding:14px;margin-bottom:12px}
+  .week-container{padding:12px;border-width:1px;border-radius:14px;margin-bottom:16px}
+  .week-header{align-items:flex-start;margin-bottom:12px;padding-bottom:10px}
+  .week-title{font-size:17px;line-height:1.25;padding-top:5px}
+  .week-actions{gap:1px}
+  .week-btn{width:36px;min-height:36px;padding:7px 4px}
+  .grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .card{padding:12px;border-radius:12px}
+  .card:hover{transform:none}
+  h2{font-size:17px}
+  small{font-size:11px}
+  .card-header{margin-bottom:6px}
+  .card-edit-toggle{min-width:34px;min-height:34px;padding:5px;font-size:14px}
+  .card-blocks{gap:7px;margin-top:7px}
+  .time-block{padding:9px 10px;border-radius:9px}
+  .time-block__time{font-size:12px}
+  .time-block__content{font-size:13px;line-height:1.45}
+  .time-block__delete{min-width:32px;min-height:32px;font-size:20px}
+  .academia-action{margin-top:10px}
+  .train-link{min-height:34px;padding:8px 11px}
+  .card-edit-form{gap:8px}
+  .card-edit-form input,.card-edit-form textarea,.form-group input,.form-group textarea,.comment-textarea{font-size:16px}
+  .card-edit-form textarea{min-height:92px}
+  .card-edit-actions,.modal-buttons{position:sticky;bottom:-1px;background:inherit;padding-top:8px;justify-content:stretch}
+  .card-edit-actions button,.modal-buttons button{flex:1;min-height:42px}
+  .modal{padding:12px;overflow-y:auto}
+  .modal-content,.comment-modal-content{width:100%;max-width:none;margin:4vh auto;padding:16px;border-radius:14px;max-height:88vh}
+  .modal-header{margin-bottom:12px;padding-bottom:10px}
+  .modal-header h2{font-size:18px}
+  .meal-record{padding:10px;gap:9px}
+  .week-comment{margin:8px 0 10px;padding:9px;font-size:12px}
+  .add-week-btn{width:100%;min-height:44px}
+}
+@media (max-width:380px){
+  body{padding-left:8px;padding-right:8px}
+  h1{font-size:21px}
+  .controls .right button{font-size:0;min-width:38px;min-height:38px;padding:8px}
+  .controls .right button::first-letter{font-size:16px}
+  .planner-actions{gap:8px}
+  .week-container{padding:10px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style></head><body>
 <div class='controls'>
   <div>
