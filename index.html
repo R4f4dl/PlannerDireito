@@ -78,7 +78,16 @@ body.dark .training-panel{background:#1f2937;border-color:#374151}
 body.dark .training-panel h3{color:#7fb3ff}
 body.dark .training-panel li{color:#e5e7eb}
 .card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
-.card-title{flex:1}
+.card-title{flex:1;cursor:pointer}
+.card-title:hover h2{color:#2563eb}
+.card.collapsed .card-blocks,.card.collapsed .academia-action{display:none}
+.card.collapsed .card-header{margin-bottom:0}
+.card.collapsed{padding-bottom:12px}
+.card-header-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.card-collapse-toggle{border:none;background:transparent;color:#64748b;padding:4px 7px;border-radius:999px;font-size:16px;line-height:1;cursor:pointer;min-width:28px;min-height:28px}
+.card-collapse-toggle:hover{background:#e2e8f0;color:#2563eb}
+body.dark .card-collapse-toggle{color:#94a3b8}
+body.dark .card-collapse-toggle:hover{background:#374151;color:#bfdbfe}
 .card-edit-toggle{border:none;background:#e0f2fe;color:#2563eb;padding:4px 7px;border-radius:999px;font-size:12px;cursor:pointer;flex-shrink:0}
 .card-edit-toggle:hover{background:#bfdbfe}
 body.dark .card-edit-toggle{background:#1e3a8a;color:#bfdbfe}
@@ -210,6 +219,7 @@ button:focus-visible,.card:focus-visible,input:focus-visible,textarea:focus-visi
   small{font-size:11px}
   .card-header{margin-bottom:6px}
   .card-edit-toggle{min-width:34px;min-height:34px;padding:5px;font-size:14px}
+  .card-collapse-toggle{min-width:34px;min-height:34px;padding:5px;font-size:19px}
   .card-blocks{gap:7px;margin-top:7px}
   .time-block{padding:9px 10px;border-radius:9px}
   .time-block__time{font-size:12px}
@@ -421,6 +431,11 @@ function configurarCardInteracoes(card){
 function criarHeaderCard(card, titulo='', subtitulo=''){
   const header=document.createElement('div');
   header.className='card-header';
+  header.title='Toque na parte superior para minimizar ou expandir o dia';
+  header.addEventListener('click',e=>{
+    e.stopPropagation();
+    minimizarDia(card);
+  });
 
   const titleDiv=document.createElement('div');
   titleDiv.className='card-title';
@@ -435,6 +450,18 @@ function criarHeaderCard(card, titulo='', subtitulo=''){
     titleDiv.appendChild(small);
   }
 
+  const actions=document.createElement('div');
+  actions.className='card-header-actions';
+
+  const collapseButton=document.createElement('button');
+  collapseButton.type='button';
+  collapseButton.className='card-collapse-toggle';
+  collapseButton.addEventListener('click',e=>{
+    e.stopPropagation();
+    minimizarDia(card);
+  });
+  actions.appendChild(collapseButton);
+
   const editButton=document.createElement('button');
   editButton.type='button';
   editButton.className='card-edit-toggle';
@@ -446,8 +473,30 @@ function criarHeaderCard(card, titulo='', subtitulo=''){
   };
 
   header.appendChild(titleDiv);
-  header.appendChild(editButton);
+  actions.appendChild(editButton);
+  header.appendChild(actions);
   return header;
+}
+function atualizarVisualDiaMinimizado(card,minimizado){
+  card.classList.toggle('collapsed',minimizado);
+  const button=card.querySelector('.card-collapse-toggle');
+  if(button){
+    button.textContent=minimizado?'＋':'−';
+    button.title=minimizado?'Expandir dia':'Minimizar dia';
+    button.setAttribute('aria-label',button.title);
+  }
+}
+function minimizarDia(card){
+  if(!card) return;
+  const cardId=obterChaveStorageCard(card);
+  const minimizado=!card.classList.contains('collapsed');
+  atualizarVisualDiaMinimizado(card,minimizado);
+  localStorage.setItem(`minimized_card_${cardId}`,String(minimizado));
+  salvar();
+}
+function restaurarEstadoDiaMinimizado(card){
+  const cardId=obterChaveStorageCard(card);
+  atualizarVisualDiaMinimizado(card,localStorage.getItem(`minimized_card_${cardId}`)==='true');
 }
 function obterTreinoId(card){
   const attr=card.getAttribute('data-treino');
@@ -842,6 +891,7 @@ function renderizarCard(card, {titulo='', subtitulo='', items=[], state=card.get
   card.appendChild(completionRow);
 
   card.setAttribute('data-state', state);
+  restaurarEstadoDiaMinimizado(card);
   configurarCardInteracoes(card);
 
   return card;
@@ -1439,7 +1489,7 @@ window.onclick=function(e){
 <script src="firebase-config.js"></script>
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-  import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
 
   const status=document.createElement('div');
   status.id='firebaseStatus';
@@ -1454,9 +1504,11 @@ window.onclick=function(e){
   const configurado=config && config.apiKey && config.projectId && !String(config.apiKey).startsWith('COLE_');
   let referencia=null;
   let temporizador=null;
+  const clientId=localStorage.getItem('firebasePlannerClientId') || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem('firebasePlannerClientId',clientId);
   const chavesDoPlanner=()=>Object.keys(localStorage).filter(chave=>
     chave==='theme' || chave==='semanasKriadas' || chave==='mealNoticeHidden' || chave==='mealNoticePrevHidden' ||
-    chave.startsWith('cardData_') || chave.startsWith('week') || chave.startsWith('comment_week_') || chave.startsWith('minimized_week_') || /^c\d+$/.test(chave)
+    chave.startsWith('cardData_') || chave.startsWith('week') || chave.startsWith('comment_week_') || chave.startsWith('minimized_week_') || chave.startsWith('minimized_card_') || /^c\d+$/.test(chave)
   );
   const obterSnapshot=()=>Object.fromEntries(chavesDoPlanner().map(chave=>[chave,localStorage.getItem(chave)]));
 
@@ -1464,7 +1516,7 @@ window.onclick=function(e){
     temporizador=null;
     if(!referencia) return;
     try{
-      await setDoc(referencia,{dados:obterSnapshot(),atualizadoEm:new Date().toISOString()});
+      await setDoc(referencia,{dados:obterSnapshot(),atualizadoEm:new Date().toISOString(),origem:clientId});
       informar('Planner sincronizado');
       setTimeout(()=>informar('',false),1800);
     }catch(erro){
@@ -1475,7 +1527,20 @@ window.onclick=function(e){
   function agendarSincronizacao(){
     if(!referencia) return;
     clearTimeout(temporizador);
-    temporizador=setTimeout(salvarNaNuvem,800);
+    temporizador=setTimeout(salvarNaNuvem,300);
+  }
+
+  function haEdicaoEmAndamento(){
+    return Boolean(document.querySelector('.card.is-editing, .modal[style*="display: block"]'));
+  }
+  function aplicarAtualizacaoRemota(dados){
+    Object.entries(dados).forEach(([chave,valor])=>localStorage.setItem(chave,valor));
+    if(haEdicaoEmAndamento()){
+      informar('Atualização recebida. Salve sua edição e recarregue a página.');
+      return;
+    }
+    informar('Atualização recebida. Carregando...');
+    setTimeout(()=>window.location.reload(),350);
   }
 
   window.firebasePlanner={
@@ -1495,6 +1560,19 @@ window.onclick=function(e){
           informar('Planner carregado da nuvem');
           setTimeout(()=>informar('',false),1800);
         }
+        let primeiraLeitura=true;
+        onSnapshot(referencia,snapshot=>{
+          const dadosRemotos=snapshot.data();
+          if(primeiraLeitura){
+            primeiraLeitura=false;
+            return;
+          }
+          if(dadosRemotos?.dados && dadosRemotos.origem!==clientId){
+            aplicarAtualizacaoRemota(dadosRemotos.dados);
+          }
+        },erro=>{
+          console.error('Erro ao receber atualizações do Firestore:',erro);
+        });
         // Alterações do planner atual geram uma gravação única, com pequeno atraso.
         new MutationObserver(agendarSincronizacao).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
       }catch(erro){
