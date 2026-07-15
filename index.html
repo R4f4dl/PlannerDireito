@@ -55,7 +55,12 @@ button{padding:10px 14px;background:#f6f8fb;border:1px solid #dbe2ea;border-radi
 #prog{font-weight:bold;margin:15px 0;text-align:left;color:#1f2937;transition:color .25s ease}
 .controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px}
 .controls .right{margin-left:auto}
-.planner-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.planner-actions{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.planner-actions__primary{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.apply-grade-btn{padding:4px 8px;background:transparent;border-color:transparent;color:#6b7a90;font-size:11px;opacity:.58}
+.apply-grade-btn:hover,.apply-grade-btn:focus-visible{opacity:1;border-color:#cbd5e1;background:#f8fafc;color:#334155}
+body.dark .apply-grade-btn{color:#9ca3af}
+body.dark .apply-grade-btn:hover,body.dark .apply-grade-btn:focus-visible{border-color:#4b5563;background:#374151;color:#f3f4f6}
 .completion-row{display:none}
 .training-panel{background:#f8fafc;border:1px solid #cbd5e1;border-left:6px solid #4f8cff;border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin:0 0 16px;}
 .training-panel h3{margin:0 0 10px;color:#1e3a8a}
@@ -182,7 +187,7 @@ body.dark .comment-textarea{background-color:#111827;color:#f3f4f6;border-color:
   </div>
   <div class='right'><button type='button' onclick='toggleTheme()' id='themeBtn'>🌙 Modo escuro</button></div>
 </div>
-<div class='planner-actions'><button type='button' onclick='resetar()'>Limpar Marcações</button><button type='button' class='meal-records-btn' onclick='mostrarRegistrosAlimentacao()'>🍽️ Alimentação</button></div>
+<div class='planner-actions'><div class='planner-actions__primary'><button type='button' onclick='resetar()'>Limpar Marcações</button><button type='button' class='apply-grade-btn' onclick='aplicarGradeOabNosDiasIniciais(true)'>Aplicar grade OAB (dias 1–6)</button></div><button type='button' class='meal-records-btn' onclick='mostrarRegistrosAlimentacao()'>🍽️ Alimentação</button></div>
 <div class='meal-notice meal-notice--prev' id='mealNoticePrev'>
   <span class='meal-notice__time' id='mealNoticePrevTime'>--:--</span>
   <span class='meal-notice__text' id='mealNoticePrevText'>Carregando aviso anterior...</span>
@@ -271,6 +276,68 @@ function obterSubtituloDoCalendario(weekNum, dayIndex){
   const data=obterDataDoPlanner(weekNum,dayIndex);
   const dataFormatada=data.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
   return `${nomesDiasSemana[dayIndex-1] || ''} • ${dataFormatada}`;
+}
+const materiasPorDia={
+  1:['Ética','Constitucional'],
+  2:['Penal','Processo Penal'],
+  3:['Civil','Processo Civil'],
+  4:['Administrativo','Tributário'],
+  5:['Trabalho','Processo do Trabalho'],
+  6:[`Rodízio de matérias
+1. Direitos Humanos
+2. ECA
+3. Consumidor
+4. Ambiental
+5. Internacional
+6. Filosofia
+7. Financeiro
+8. Previdenciário
+9. Eleitoral
+10. Empresarial`]
+};
+function obterItensPadraoDoDia(dayIndex){
+  const materias=materiasPorDia[dayIndex];
+  if(!materias) return [];
+
+  if(dayIndex===6){
+    return [
+      {horario:'08:30',texto:'Café da manhã'},
+      {horario:'09:30 às 11:30',texto:'Academia'},
+      {horario:'11:30 às 14:00',texto:materias[0]}
+    ];
+  }
+
+  const blocosDeEstudo=[
+    {horario:'07:30 às 10:30',texto:`Estudo de ${materias[0]}.`},
+    {horario:'10:30 às 13:00',texto:`Estudo de ${materias[1]}.`}
+  ];
+
+  return [
+    {horario:'07:00',texto:'Café da manhã'},
+    ...blocosDeEstudo,
+    {horario:'13:00 às 14:00',texto:'Almoço e descanso e lanche da tarde'},
+    {horario:'14:00 às 16:30',texto:'Concurso'},
+    {horario:'16:30 às 18:00',texto:'Pré treino'},
+    {horario:'18:00 às 20:00',texto:'Academia'},
+    {horario:'20:00 às 20:30',texto:'Caminhada'},
+    {horario:'20:30',texto:'Jantar'}
+  ];
+}
+function aplicarGradeOabNosDiasIniciais(confirmar=false){
+  if(confirmar && !confirm('Aplicar a grade padrão aos dias 1 a 6? As descrições atuais desses dias serão substituídas.')) return;
+
+  document.querySelectorAll(".week-container[data-week='1'] .card").forEach((card,index)=>{
+    const dayIndex=index+1;
+    const items=obterItensPadraoDoDia(dayIndex);
+    if(!items.length) return;
+    const dados=carregarDadosCard(card);
+    const subtitulo=obterSubtituloDoCalendario(1,dayIndex);
+    salvarDadosCard(card,{titulo:dados.titulo || `Dia ${dayIndex}`,subtitulo,items,state:card.getAttribute('data-state') || dados.state || 'white'});
+    renderizarCard(card,{titulo:dados.titulo || `Dia ${dayIndex}`,subtitulo,items,state:card.getAttribute('data-state') || dados.state || 'white'});
+    atualizarCorSemana(card);
+  });
+  localStorage.setItem('gradeOabBaseV3','aplicada');
+  salvar();
 }
 function configurarCardInteracoes(card){
   card.setAttribute('role','button');
@@ -1030,6 +1097,9 @@ async function iniciarPlanner(){
     await window.firebasePlanner.restaurar();
   }
   prepararCards();
+  if(localStorage.getItem('gradeOabBaseV3')!=='aplicada'){
+    aplicarGradeOabNosDiasIniciais();
+  }
   atualizarMensagemRefeicao();
   restaurarSemanassCriadas();
   carregarEstadoSemanas();
@@ -1072,7 +1142,7 @@ function gerarDadosNovoDia(weekNum, diaAtual, dayIndex=1){
   return normalizarDadosCard({
     titulo:`Dia ${diaAtual}`,
     subtitulo:obterSubtituloDoCalendario(weekNum,dayIndex),
-    items:[],
+    items:obterItensPadraoDoDia(dayIndex),
     state:'white'
   });
 }
